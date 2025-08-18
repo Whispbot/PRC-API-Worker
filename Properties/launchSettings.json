@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "PRC API Worker": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
