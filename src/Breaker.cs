@@ -28,6 +28,8 @@ namespace PRC_API_Worker
         public static readonly int maxRequiredPercentage = 95;
         public static readonly int minRequiredPercentage = 75;
 
+        public static readonly int minRequests = 5;
+
         public static bool aboveThreshold = false;
         private static DateTimeOffset _lastUpdate = DateTimeOffset.UtcNow;
 
@@ -43,7 +45,7 @@ namespace PRC_API_Worker
         {
             get
             {
-                if (ApproxErrorPercentage < errorThreshold) // Good rate
+                if (ApproxErrorPercentage < errorThreshold || currentWindowRequests < minRequests) // Good rate
                 {
                     if (aboveThreshold)
                     {
