@@ -34,11 +34,8 @@ namespace PRC_API_Worker
             }
         }
 
-        public static void SetCache(string token, object item, double ttlMs = 60000)
+        public static void SetCache(string key, object item, double ttlMs = 60000)
         {
-            
-            string key = $"prcworker-{item.GetType().Name.ToLower()}-{token}";
-
             if (usingRedis)
             {
                 if (redis is null) return;
@@ -50,22 +47,20 @@ namespace PRC_API_Worker
             }
         }
 
-        public static T? GetCache<T>(string token)
+        public static object? GetCache(string key)
         {
-            string key = $"prcworker-{typeof(T).Name.ToLower()}-{token}";
-
             if (usingRedis)
             {
                 if (redis is null) return default;
                 var value = redis.StringGet(key);
-                return value.HasValue ? JsonConvert.DeserializeObject<T>(value.ToString()) : default;
+                return value.HasValue ? JsonConvert.DeserializeObject(value.ToString()) : default;
             }
             else
             {
                 (object, double) value = inMemory.GetValueOrDefault(key, (new { },-1));
                 if (value.Item2 > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                 {
-                    return (T)value.Item1;
+                    return value.Item1;
                 }
                 else
                 {
