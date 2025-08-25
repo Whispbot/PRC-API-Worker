@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace PRC_API_Worker
 {
@@ -54,6 +55,20 @@ namespace PRC_API_Worker
             using var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read);
             using var sr = new StreamReader(cs);
             return sr.ReadToEnd();
+        }
+
+        public static string HashString(string input)
+        {
+            byte[] inputBytes = Encoding.UTF8.GetBytes(input);
+            byte[] hashBytes = SHA256.HashData(inputBytes);
+
+            StringBuilder sb = new();
+            foreach (byte b in hashBytes)
+            {
+                sb.Append(b.ToString("x2"));
+            }
+
+            return sb.ToString();
         }
     }
 }
