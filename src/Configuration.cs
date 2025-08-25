@@ -9,7 +9,11 @@ namespace PRC_API_Worker
 {
     public static class Config
     {
-        public static readonly bool isDev = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+# if DEBUG
+        public static readonly bool isDev = true;
+# else
+        public static readonly bool isDev = false;
+# endif
 
         public static readonly string replicaId = Environment.GetEnvironmentVariable("RAILWAY_REPLICA_ID") ?? "dev";
         public static readonly string deploymentId = Environment.GetEnvironmentVariable("RAILWAY_DEPLOYMENT_ID") ?? "dev";
