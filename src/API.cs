@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using static System.Net.Http.HttpMethod;
 using Microsoft.AspNetCore.DataProtection.KeyManagement.Internal;
 using System.ComponentModel.Design.Serialization;
+using System.Diagnostics;
 
 namespace PRC_API_Worker
 {
@@ -77,8 +78,12 @@ namespace PRC_API_Worker
             app.Run();
         }
 
-        public static readonly bool requireAuth = Environment.GetEnvironmentVariable("USE_AUTHORIZATION")?.ToUpper() == "TRUE" && !Config.isDev;
+        // If an auth key has been provided and the USE_AUTHORIZATION environment variable is not set, it will default to whether the auth key is present
+        // If in dev mode, authorization will be disabled and cannot be enabled
         public static readonly string? authToken = Environment.GetEnvironmentVariable("AUTHORIZATION_KEY");
+        public static readonly bool requireAuth = bool.Parse(Environment.GetEnvironmentVariable("USE_AUTHORIZATION") ?? (authToken is not null).ToString()) && !Config.isDev;
+
+        /// <returns>true if authorized, false if not</returns>
         public static async Task<bool> CheckAuth(HttpContext context)
         {
             if (!requireAuth) return true;
@@ -86,10 +91,12 @@ namespace PRC_API_Worker
             var headers = context.Request.Headers;
             var authHeader = headers.Authorization.FirstOrDefault();
 
-            if (authToken is null)
+            if (authToken is null) // Authorization is required but no key has been set
             {
-                Log.Error("Authorization is required but authorization key is not set.");
-                throw new Exception("Authorization is required but authorization key is not set.");
+                Log.Fatal("Authorization is required but authorization key is not set.");
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                await context.Response.WriteAsJsonAsync(new { code = 500, message = "Server misconfigured" });
+                return false;
             }
 
             if (authHeader is null || authHeader != authToken)
@@ -106,82 +113,91 @@ namespace PRC_API_Worker
         {
             return async context =>
             {
-                if (!await CheckAuth(context)) return; // Ignores during dev
-
-                var endpointData = PRC.endpoints[endpoint];
-                string? serverKey = context.Request.Headers["Server-Key"].FirstOrDefault();
-
-                if (serverKey is null && endpointData.Item4) // Makes sure that server key is provided if required by endpoint
+                try
                 {
-                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    await context.Response.WriteAsJsonAsync(new { code = 400, message = "Server key not provided when required" });
-                    return;
-                }
+                    if (!await CheckAuth(context)) return; // Ignores during dev
 
-                // Check cache for pre-existing data
-                string? useCacheHeader = context.Request.Headers["Use-Cache"].FirstOrDefault();
-                bool useCache = useCacheHeader is null || bool.Parse(useCacheHeader);
+                    var endpointData = PRC.endpoints[endpoint];
+                    string? serverKey = context.Request.Headers["Server-Key"].FirstOrDefault();
 
-                string? cacheDurationHeader = context.Request.Headers["Cache-Duration"].FirstOrDefault();
-                TimeSpan cacheDuration = cacheDurationHeader is not null ? TimeSpan.FromSeconds(int.Parse(cacheDurationHeader)) : TimeSpan.FromMinutes(1);
-
-                string cacheKey = $"prcapiworker:{endpoint}:{serverKey ?? "unauthenticated"}";
-                if (context.Request.Method == Get.ToString() && useCache)
-                {
-                    // Only need to cache get requests
-
-                    object? cachedResponse = Caching.GetCache(cacheKey);
-
-                    if (cachedResponse is not null)
-                    {
-                        context.Response.StatusCode = StatusCodes.Status200OK;
-                        await context.Response.WriteAsJsonAsync(new { code = 304, message = "Item Cached", data = cachedResponse });
-                        return;
-                    }
-                }
-
-                // API keys are encrypted when sent
-                string? unencryptedKey = serverKey is not null ? Encryption.DecryptApiKey(serverKey) : null;
-
-                // Get the request body if it exists
-                string? requestBody = null;
-                if (context.Request.HasJsonContentType())
-                {
-                    using var reader = new StreamReader(context.Request.Body);
-                    requestBody = await reader.ReadToEndAsync();
-                }
-
-                // If a run at timestamp is provided, parse it into a DTO
-                string? runAt = context.Request.Headers["Run-At"].FirstOrDefault();
-                DateTimeOffset? runAtDTO = runAt is not null ? DateTimeOffset.Parse(runAt) : null;
-
-                // Enqueue the item and wait for completion
-                PRC.QueueItem item = (context.Request.Method == Get.ToString() ? PRC.requestQueue.Find(q => !q.complete && q.endpoint == endpoint && q.serverKey == unencryptedKey) : null) ?? PRC.Enqueue(endpoint, unencryptedKey, requestBody, runAtDTO);
-                PRC.WaitForCompletion(item);
-
-                if (item.complete)
-                {
-                    if (item.success) // We gucci
-                    {
-                        if (context.Request.Method == Get.ToString() && useCache && item.result is not null)
-                        {
-                            // Run caching in the background to avoid blocking response
-                            _ = Task.Run(() => Caching.SetCache(cacheKey, item.result, cacheDuration.TotalMilliseconds));
-                        }
-
-                        context.Response.StatusCode = StatusCodes.Status200OK;
-                        await context.Response.WriteAsJsonAsync(new { code = 200, data = item.result });
-                    }
-                    else // Request failed for whatever reason
+                    if (serverKey is null && endpointData.Item4) // Makes sure that server key is provided if required by endpoint
                     {
                         context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                        await context.Response.WriteAsJsonAsync(new { code = item.failureCode, message = item.failureReason });
+                        await context.Response.WriteAsJsonAsync(new { code = 400, message = "Server key not provided when required" });
+                        return;
                     }
-                }
-                else // Request never completed within expected duration
+
+                    // Check cache for pre-existing data
+                    string? useCacheHeader = context.Request.Headers["Use-Cache"].FirstOrDefault();
+                    bool useCache = useCacheHeader is null || bool.Parse(useCacheHeader);
+
+                    string? cacheDurationHeader = context.Request.Headers["Cache-Duration"].FirstOrDefault();
+                    TimeSpan cacheDuration = cacheDurationHeader is not null ? TimeSpan.FromSeconds(int.Parse(cacheDurationHeader)) : TimeSpan.FromMinutes(1);
+
+                    string cacheKey = $"prcapiworker:{endpoint}:{serverKey ?? "unauthenticated"}";
+                    if (context.Request.Method == Get.ToString() && useCache)
+                    {
+                        // Only need to cache get requests
+
+                        object? cachedResponse = Caching.GetCache(cacheKey);
+
+                        if (cachedResponse is not null)
+                        {
+                            context.Response.StatusCode = StatusCodes.Status200OK;
+                            await context.Response.WriteAsJsonAsync(new { code = 304, message = "Item Cached", data = cachedResponse });
+                            return;
+                        }
+                    }
+
+                    // API keys are encrypted when sent
+                    string? unencryptedKey = serverKey is not null ? Encryption.DecryptApiKey(serverKey) : null;
+
+                    // Get the request body if it exists
+                    string? requestBody = null;
+                    if (context.Request.HasJsonContentType())
+                    {
+                        using var reader = new StreamReader(context.Request.Body);
+                        requestBody = await reader.ReadToEndAsync();
+                    }
+
+                    // If a run at timestamp is provided, parse it into a DTO
+                    string? runAt = context.Request.Headers["Run-At"].FirstOrDefault();
+                    DateTimeOffset? runAtDTO = runAt is not null ? DateTimeOffset.Parse(runAt) : null;
+
+                    // Enqueue the item and wait for completion
+                    PRC.QueueItem item = (context.Request.Method == Get.ToString() ? PRC.requestQueue.Find(q => !q.complete && q.endpoint == endpoint && q.serverKey == unencryptedKey) : null) ?? PRC.Enqueue(endpoint, unencryptedKey, requestBody, runAtDTO);
+                    PRC.WaitForCompletion(item);
+
+                    if (item.complete)
+                    {
+                        if (item.success) // We gucci
+                        {
+                            if (context.Request.Method == Get.ToString() && useCache && item.result is not null)
+                            {
+                                // Run caching in the background to avoid blocking response
+                                _ = Task.Run(() => Caching.SetCache(cacheKey, item.result, cacheDuration.TotalMilliseconds));
+                            }
+
+                            context.Response.StatusCode = StatusCodes.Status200OK;
+                            await context.Response.WriteAsJsonAsync(new { code = 200, data = item.result });
+                        }
+                        else // Request failed for whatever reason
+                        {
+                            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                            await context.Response.WriteAsJsonAsync(new { code = item.failureCode, message = item.failureReason });
+                        }
+                    }
+                    else // Request never completed within expected duration
+                    {
+                        context.Response.StatusCode = StatusCodes.Status408RequestTimeout;
+                        await context.Response.WriteAsJsonAsync(new { code = 408, message = "Request Timeout" });
+                    }
+                } 
+                catch (Exception ex)
                 {
-                    context.Response.StatusCode = StatusCodes.Status408RequestTimeout;
-                    await context.Response.WriteAsJsonAsync(new { code = 408, message = "Request Timeout" });
+                    Log.Error(ex, "An error occured while fetching some data.");
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    await context.Response.WriteAsJsonAsync(new { code = 500, message = "Internal Server Error" });
                 }
             };
         }
@@ -193,8 +209,18 @@ namespace PRC_API_Worker
                 new() {
                     { Get, async context =>
                     {
-                            context.Response.StatusCode = StatusCodes.Status200OK;
-                            await context.Response.WriteAsJsonAsync(new {status = "ok"});
+                        if (Caching.usingRedis)
+                        {
+                            if (Caching.redis is null)
+                            {
+                                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                                await context.Response.WriteAsJsonAsync(new { code = 503, message = "Redis not connected" });
+                                return;
+                            }
+                        }
+
+                        context.Response.StatusCode = StatusCodes.Status200OK;
+                        await context.Response.WriteAsJsonAsync(new {status = "ok"});
                     }
                     }
                 }

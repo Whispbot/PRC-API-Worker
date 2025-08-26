@@ -76,6 +76,27 @@ namespace PRC_API_Worker
             return null;
         }
 
+        public static void Close()
+        {
+            if (_redis != null)
+            {
+                try
+                {
+                    _redis.Close();
+                    _redis.Dispose();
+                }
+                catch { }
+                finally
+                {
+                    _redis = null;
+                    _db = null;
+                    _pubSub = null;
+                    _connected = false;
+                    _connecting = false;
+                }
+            }
+        }
+
         public class RedisInitConfig
         {
             public string? redis_host;
@@ -161,7 +182,7 @@ namespace PRC_API_Worker
 
                 _db.Ping();
 
-                Log.Information($"Connected to Redis in {(DateTimeOffset.UtcNow.UtcTicks - start) / 10000}ms");
+                Log.Information($"Connected to Redis in {(DateTimeOffset.UtcNow.UtcTicks - start) / 10000}ms.");
                 _connected = true;
                 _connecting = false;
                 return true;

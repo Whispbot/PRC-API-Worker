@@ -11,7 +11,7 @@ namespace PRC_API_Worker
 {
     public static class Caching
     {
-        public static bool usingRedis = !Config.isDev && (Environment.GetEnvironmentVariable("USE_REDIS") != "FALSE");
+        public static bool usingRedis = !Config.isDev && (Environment.GetEnvironmentVariable("REDIS_HOST") is not null);
 
         public static readonly Dictionary<string, (object, double)> inMemory = [];
         public static IDatabase? redis = null;
@@ -21,7 +21,21 @@ namespace PRC_API_Worker
             if (usingRedis)
             {
                 Log.Information("Using redis for caching.");
-                redis = Redis.GetDatabase();
+
+                int attempts = 0;
+                do
+                {
+                    redis = Redis.GetDatabase();
+
+                    if (redis is null)
+                    {
+                        Log.Warning($"Redis connection unavailable for caching, retrying in {attempts * 2} seconds.");
+                        attempts++;
+                        Thread.Sleep(attempts * 2000);
+                    }
+                }
+                while (redis is null && attempts < 10);
+
                 if (redis == null)
                 {
                     Log.Fatal("Failed to connect to redis for caching...");

@@ -19,16 +19,18 @@ You can learn more about their API in their [docs](https://apidocs.policerolepla
 
 ### Environment Variables
 
-| Varible Name        | Required | Default | Use                                                                                   |
-| ------------------- | :------: | :-----: | ------------------------------------------------------------------------------------- |
-| PRC_GLOBAL_KEY      |    ❌    |         | Your global API key from PRC, not required but may be needed for bigger applications. |
-| AUTHORIZATION_KEY   |    ❌    |         | Required if `USE_AUTHORIZATION` is TRUE.                                              |
-| USE_AUTHORIZATION   |    ❌    |  FALSE  | Whether the `Authorization` header is required for PRC endpoints only.                |
-| ENCRYPTION_KEY      |    ✅    |         | The encryption key to use for API key encryption. Should be 32 characters long.       |
-| REDIS_HOST          |    ❌    |         | The host for your redis instance.                                                     |
-| REDIS_PASSWORD      |    ❌    |         | The password for your redis instance.                                                 |
-| REDIS_PORT          |    ❌    |         | The port for your redis instance.                                                     |
-| DISCORD_WEBHOOK_URL |    ❌    |         | The webhook to send error alerts to.                                                  |
+| Varible Name        | Required |  Default   | Use                                                                                   |
+| ------------------- | :------: | :--------: | ------------------------------------------------------------------------------------- |
+| PRC_GLOBAL_KEY      |    ❌    |            | Your global API key from PRC, not required but may be needed for bigger applications. |
+| AUTHORIZATION_KEY   |    ❌    |            | Required if `USE_AUTHORIZATION` is TRUE.                                              |
+| USE_AUTHORIZATION   |    ❌    | Key Exists | Whether the `Authorization` header is required for PRC endpoints only.                |
+| ENCRYPTION_KEY      |    ✅    |            | The encryption key to use for API key encryption. Should be 32 characters long.       |
+| REDIS_HOST          |    ❌    |            | The host for your redis instance.                                                     |
+| REDIS_PASSWORD      |    ❌    |            | The password for your redis instance.                                                 |
+| REDIS_PORT          |    ❌    |            | The port for your redis instance.                                                     |
+| DISCORD_WEBHOOK_URL |    ❌    |            | The webhook to send error alerts to.                                                  |
+
+If you are using multiple replicas (to spread load), you should add a redis instance so that the replicas can work in sync, otherwise you will be recieving a ton of ratelimit errors.
 
 Using the railway templates above, the `AUTHORIZATION_KEY` and `ENCRYPTION_KEY` environment variables will be automatically generated upon the first deployment and the Redis based variables will be auto filled in the template that uses Redis, otherwise, you will be prompted to fill out those fields (optional) upon deploying the template without Redis.
 

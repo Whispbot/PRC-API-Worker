@@ -16,7 +16,7 @@ namespace PRC_API_Worker
 
         public static readonly string baseUrl = "https://api.policeroleplay.community";
         public static readonly string? globalApiKey = Environment.GetEnvironmentVariable("PRC_GLOBAL_KEY");
-        public static readonly string globalBucketKey = globalApiKey is null ? "unauthorized-global" : "global";
+        public static readonly string globalBucketKey = globalApiKey is null ? "unauthenticated-global" : "global";
 
         public static readonly TimeSpan requestTimeout = TimeSpan.FromSeconds(30); // How long a request can stay in the queue before being dropped
 
@@ -133,6 +133,8 @@ namespace PRC_API_Worker
                                         {
                                             bucket.remaining = int.Parse(headers.GetValues("X-RateLimit-Remaining").FirstOrDefault() ?? "-1");
                                         }
+
+                                        _ = Task.Run(() => Sync.SyncBucket(bucket));
                                     }
                                     bucket.inUse = false;
 
