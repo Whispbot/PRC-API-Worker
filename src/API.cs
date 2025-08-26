@@ -230,6 +230,8 @@ namespace PRC_API_Worker
                 new() {
                     { Post, async context =>
                     {
+                        if (!await CheckAuth(context)) return;
+
                         CacheKeyJson? body = context.Request.HasJsonContentType() ? await context.Request.ReadFromJsonAsync<CacheKeyJson>() : null;
 
                         if (body is null)
