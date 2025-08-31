@@ -144,7 +144,9 @@ namespace PRC_API_Worker
                         if (cachedResponse is not null)
                         {
                             context.Response.StatusCode = StatusCodes.Status200OK;
-                            await context.Response.WriteAsJsonAsync(new { code = 304, message = "Item Cached", data = cachedResponse });
+                            object? cachedAt = Caching.GetCache($"{cacheKey}:timestamp");
+                            long? cachedAtMs = cachedAt is not null ? (long)cachedAt : null;
+                            await context.Response.WriteAsJsonAsync(new { code = 304, message = "Item Cached", data = cachedResponse, cachedAt = cachedAtMs });
                             return;
                         }
                     }
@@ -175,7 +177,11 @@ namespace PRC_API_Worker
                             if (context.Request.Method == Get.ToString() && useCache && item.result is not null)
                             {
                                 // Run caching in the background to avoid blocking response
-                                _ = Task.Run(() => Caching.SetCache(cacheKey, item.result, cacheDuration.TotalMilliseconds));
+                                _ = Task.Run(() => {
+                                    Caching.SetCache(cacheKey, item.result, cacheDuration.TotalMilliseconds);
+                                    Caching.SetCache($"{cacheKey}:expired", item.result, 1000 * 60 * 60);
+                                    Caching.SetCache($"{cacheKey}:timestamp", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 1000 * 60 * 60);
+                                });
                             }
 
                             context.Response.StatusCode = StatusCodes.Status200OK;
@@ -183,14 +189,20 @@ namespace PRC_API_Worker
                         }
                         else // Request failed for whatever reason
                         {
+                            object? expiredCache = Caching.GetCache($"{cacheKey}:expired");
+                            object? cachedAt = expiredCache is not null ? Caching.GetCache($"{cacheKey}:timestamp") : null;
+                            long? cachedAtMs = cachedAt is not null ? (long)cachedAt : null;
                             context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                            await context.Response.WriteAsJsonAsync(new { code = item.failureCode, message = item.failureReason });
+                            await context.Response.WriteAsJsonAsync(new { code = item.failureCode, message = item.failureReason, data = expiredCache, cachedAt = cachedAtMs });
                         }
                     }
                     else // Request never completed within expected duration
                     {
+                        object? expiredCache = Caching.GetCache($"{cacheKey}:expired");
+                        object? cachedAt = expiredCache is not null ? Caching.GetCache($"{cacheKey}:timestamp") : null;
+                        long? cachedAtMs = cachedAt is not null ? (long)cachedAt : null;
                         context.Response.StatusCode = StatusCodes.Status408RequestTimeout;
-                        await context.Response.WriteAsJsonAsync(new { code = 408, message = "Request Timeout" });
+                        await context.Response.WriteAsJsonAsync(new { code = 408, message = "Request Timeout", data = expiredCache, cachedAt = cachedAtMs });
                     }
                 } 
                 catch (Exception ex)
