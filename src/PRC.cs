@@ -143,7 +143,7 @@ namespace PRC_API_Worker
                                         Breaker.RecordRequest(false); // Successful request
 
                                         string body = await result.Content.ReadAsStringAsync();
-                                        item.result = JsonConvert.DeserializeObject(body, endpoint.Item3 ?? typeof(PRC_Message));
+                                        item.result = JsonConvert.DeserializeObject(body, endpoint.Item3 ?? typeof(PRC_Message), new JsonSerializerSettings() { Error = (o, e) => { e.ErrorContext.Handled = true; } });
                                         item.complete = true;
                                         item.success = true;
 
@@ -290,16 +290,17 @@ namespace PRC_API_Worker
 
         //    Endpoint                     Path                      Method          Return Type                         Requires Server Key
         public static readonly Dictionary<Endpoint, (string, HttpMethod, Type?, bool)> endpoints = new() {
-            { Endpoint.ServerCommand,     ("/v1/server/command",     HttpMethod.Post, null,                               true) },
-            { Endpoint.ServerInfo,        ("/v1/server",             HttpMethod.Get,  typeof(PRC_Server),                 true) },
-            { Endpoint.ServerPlayers,     ("/v1/server/players",     HttpMethod.Get,  typeof(List<PRC_Player>),           true) },
-            { Endpoint.ServerJoinlogs,    ("/v1/server/joinlogs",    HttpMethod.Get,  typeof(List<PRC_JoinLog>),          true) },
-            { Endpoint.ServerQueue,       ("/v1/server/queue",       HttpMethod.Get,  typeof(List<double>),               true) },
-            { Endpoint.ServerKilllogs,    ("/v1/server/killlogs",    HttpMethod.Get,  typeof(List<PRC_KillLog>),          true) },
-            { Endpoint.ServerCommandlogs, ("/v1/server/commandlogs", HttpMethod.Get,  typeof(List<PRC_CommandLog>),       true) },
-            { Endpoint.ServerModcalls,    ("/v1/server/modcalls",    HttpMethod.Get,  typeof(List<PRC_CallLog>),          true) },
-            { Endpoint.ServerBans,        ("/v1/server/bans",        HttpMethod.Get,  typeof(Dictionary<string, string>), true) },
-            { Endpoint.ServerVehicles,    ("/v1/server/vehicles",    HttpMethod.Get,  typeof(List<PRC_Vehicle>),          true) },
+            { Endpoint.ServerCommand,     ("/v1/server/command",     HttpMethod.Post, null,                               true ) },
+            { Endpoint.ServerInfo,        ("/v1/server",             HttpMethod.Get,  typeof(PRC_Server),                 true ) },
+            { Endpoint.ServerPlayers,     ("/v1/server/players",     HttpMethod.Get,  typeof(List<PRC_Player>),           true ) },
+            { Endpoint.ServerJoinlogs,    ("/v1/server/joinlogs",    HttpMethod.Get,  typeof(List<PRC_JoinLog>),          true ) },
+            { Endpoint.ServerQueue,       ("/v1/server/queue",       HttpMethod.Get,  typeof(List<double>),               true ) },
+            { Endpoint.ServerKilllogs,    ("/v1/server/killlogs",    HttpMethod.Get,  typeof(List<PRC_KillLog>),          true ) },
+            { Endpoint.ServerCommandlogs, ("/v1/server/commandlogs", HttpMethod.Get,  typeof(List<PRC_CommandLog>),       true ) },
+            { Endpoint.ServerModcalls,    ("/v1/server/modcalls",    HttpMethod.Get,  typeof(List<PRC_CallLog>),          true ) },
+            { Endpoint.ServerBans,        ("/v1/server/bans",        HttpMethod.Get,  typeof(Dictionary<string, string>), true ) },
+            { Endpoint.ServerVehicles,    ("/v1/server/vehicles",    HttpMethod.Get,  typeof(List<PRC_Vehicle>),          true ) },
+            { Endpoint.ServerStaff,       ("/v1/server/staff",       HttpMethod.Get,  typeof(PRC_Staff),                  true ) },
             { Endpoint.ResetAPIKey,       ("/v1/api-key/reset",      HttpMethod.Get,  null,                               false) },
         };
 
@@ -315,6 +316,7 @@ namespace PRC_API_Worker
             ServerModcalls,
             ServerBans,
             ServerVehicles,
+            ServerStaff,
             ResetAPIKey
         }
 

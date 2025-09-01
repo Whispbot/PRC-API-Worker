@@ -11,42 +11,42 @@ namespace PRC_API_Worker
         /// <summary>
         /// The name of the ER:LC server.
         /// </summary>
-        public string Name = "Server Name";
+        public string name = "Server Name";
 
         /// <summary>
         /// The Roblox user ID of the server owner.
         /// </summary>
-        public double OwnerId = 1;
+        public double ownerId = 1;
 
         /// <summary>
         /// The Roblox user ID's of the server co-owners.
         /// </summary>
-        public List<double> CoOwnerIds = [];
+        public List<double> coOwnerIds = [];
 
         /// <summary>
         /// The number of players currently in the server.
         /// </summary>
-        public byte CurrentPlayers = 0;
+        public byte currentPlayers = 0;
 
         /// <summary>
         /// The maximum number of players allowed in the server.
         /// </summary>
-        public byte MaxPlayers = 40;
+        public byte maxPlayers = 40;
 
         /// <summary>
         /// The key used to join the server.
         /// </summary>
-        public string JoinKey = "";
+        public string joinKey = "";
         
         /// <summary>
         /// The account verification requirement for joining the server.
         /// </summary>
-        public string AccVerifiedReq = "Disabled";
+        public string accVerifiedReq = "Disabled";
 
         /// <summary>
         /// Whether team balance is enabled for the server.
         /// </summary>
-        public bool TeamBalance = true;
+        public bool teamBalance = true;
     }
 
     public class PRC_Player
@@ -161,5 +161,23 @@ namespace PRC_API_Worker
         /// The Roblox username of the vehicle's owner.
         /// </summary>
         public string Owner = "Roblox";
+    }
+
+    public class PRC_Staff
+    {
+        /// <summary>
+        /// The Roblox user IDs of the server co-owners.
+        /// </summary>
+        public List<double> CoOwners = [];
+
+        /// <summary>
+        /// A dictionary of server administrators with the key as their Roblox user ID and the value as their username.
+        /// </summary>
+        public Dictionary<string, string> Admins = [];
+
+        /// <summary>
+        /// A dictionary of server moderators with the key as their Roblox user ID and the value as their username.
+        /// </summary>
+        public Dictionary<string, string> Mods = [];
     }
 }
