@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Serilog;
+using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,6 +14,7 @@ namespace PRC_API_Worker
     {
         private static readonly HttpClient _client = new();
         private static readonly Random _random = new();
+        private static readonly ISubscriber? _subscriber = Redis.GetSubscriber();
 
         public static readonly string baseUrl = "https://api.policeroleplay.community";
         public static readonly string? globalApiKey = Environment.GetEnvironmentVariable("PRC_GLOBAL_KEY");
@@ -160,6 +162,11 @@ namespace PRC_API_Worker
 
                                             lock (requestQueue) requestQueue.Add(newItem);
                                         }
+
+                                        if (Environment.GetEnvironmentVariable("REDIS_PUBLISH_RESULTS")?.ToLower() == "true")
+                                        {
+                                            _subscriber?.Publish("prcapiworker:update", $"{item.serverKey}:{item.endpoint}:{body}");
+                                        }
                                     }
                                     else
                                     {
@@ -186,6 +193,11 @@ namespace PRC_API_Worker
                                             item.success = false;
                                             item.failureCode = code;
                                             item.failureReason = $"Error {error?.code ?? ErrorCode.Unknown}: {error?.message ?? "Unknown error"}";
+
+                                            if (Environment.GetEnvironmentVariable("REDIS_PUBLISH_RESULTS")?.ToLower() == "true")
+                                            {
+                                                _subscriber?.Publish("prcapiworker:failure", $"{item.serverKey}:{item.endpoint}:{code}:{error?.message ?? "unknown error"}");
+                                            }
                                         }
                                     }
                                 }
@@ -254,9 +266,16 @@ namespace PRC_API_Worker
             public Endpoint endpoint;
             public (string, HttpMethod, Type?, bool) EndpointData => endpoints[endpoint];
             /// <summary>
-            /// Not encrypted otherwise bucket key will be wrong.
+            /// Plain text API key for sending to PRC API and bucket identification
             /// </summary>
             public string? serverKey = null;
+            /// <summary>
+            /// Hashed version of serverKey for secure logging and caching (security)
+            /// </summary>
+            public string HashedServerKey => serverKey is not null ? Encryption.HashString(serverKey) : "unauthenticated";
+            /// <summary>
+            /// Bucket key for rate limiting - uses plain text serverKey to match PRC API bucket headers
+            /// </summary>
             public string BucketKey => endpoint == Endpoint.ServerCommand ? $"command-{serverKey}" : globalApiKey ?? "global";
 
             /// <summary>

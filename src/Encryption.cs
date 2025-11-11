@@ -10,6 +10,7 @@ namespace PRC_API_Worker
 {
     public static class Encryption
     {
+        [Obsolete("API keys are no longer encrypted. Use HashString for secure storage/logging instead.")]
         private static string EncryptionKey
         {
             get
@@ -23,6 +24,7 @@ namespace PRC_API_Worker
             }
         }
 
+        [Obsolete("API keys are no longer encrypted. Use plain text API keys directly.")]
         public static string EncryptApiKey(string apiKey)
         {
             using var aes = Aes.Create();
@@ -41,6 +43,7 @@ namespace PRC_API_Worker
             return Convert.ToBase64String(ms.ToArray());
         }
 
+        [Obsolete("API keys are no longer encrypted. Use plain text API keys directly.")]
         public static string DecryptApiKey(string encryptedApiKey)
         {
             var fullCipher = Convert.FromBase64String(encryptedApiKey);
@@ -57,6 +60,12 @@ namespace PRC_API_Worker
             return sr.ReadToEnd();
         }
 
+        /// <summary>
+        /// Hashes a string using SHA256 for secure storage and logging purposes.
+        /// This ensures API keys are not exposed in logs, cache keys, or other storage.
+        /// </summary>
+        /// <param name="input">The string to hash</param>
+        /// <returns>SHA256 hash as lowercase hexadecimal string</returns>
         public static string HashString(string input)
         {
             byte[] inputBytes = Encoding.UTF8.GetBytes(input);

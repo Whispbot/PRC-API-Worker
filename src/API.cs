@@ -134,7 +134,9 @@ namespace PRC_API_Worker
                     string? cacheDurationHeader = context.Request.Headers["Cache-Duration"].FirstOrDefault();
                     TimeSpan cacheDuration = cacheDurationHeader is not null ? TimeSpan.FromSeconds(int.Parse(cacheDurationHeader)) : TimeSpan.FromMinutes(1);
 
-                    string cacheKey = $"prcapiworker:{endpoint}:{serverKey ?? "unauthenticated"}";
+                    // Hash the server key for caching purposes (security)
+                    string hashedServerKey = serverKey is not null ? Encryption.HashString(serverKey) : "unauthenticated";
+                    string cacheKey = $"prcapiworker:{endpoint}:{hashedServerKey}";
                     if (context.Request.Method == Get.ToString() && useCache)
                     {
                         // Only need to cache get requests
@@ -151,9 +153,6 @@ namespace PRC_API_Worker
                         }
                     }
 
-                    // API keys are encrypted when sent
-                    string? unencryptedKey = serverKey is not null ? Encryption.DecryptApiKey(serverKey) : null;
-
                     // Get the request body if it exists
                     string? requestBody = null;
                     if (context.Request.HasJsonContentType())
@@ -167,7 +166,7 @@ namespace PRC_API_Worker
                     DateTimeOffset? runAtDTO = runAt is not null ? DateTimeOffset.Parse(runAt) : null;
 
                     // Enqueue the item and wait for completion
-                    PRC.QueueItem item = (context.Request.Method == Get.ToString() ? PRC.requestQueue.Find(q => !q.complete && q.endpoint == endpoint && q.serverKey == unencryptedKey) : null) ?? PRC.Enqueue(endpoint, unencryptedKey, requestBody, runAtDTO);
+                    PRC.QueueItem item = (context.Request.Method == Get.ToString() ? PRC.requestQueue.Find(q => !q.complete && q.endpoint == endpoint && q.serverKey == serverKey) : null) ?? PRC.Enqueue(endpoint, serverKey, requestBody, runAtDTO);
                     PRC.WaitForCompletion(item);
 
                     if (item.complete)
@@ -236,44 +235,7 @@ namespace PRC_API_Worker
                     }
                     }
                 }
-            },
-            {
-                "/encrypt-key",
-                new() {
-                    { Post, async context =>
-                    {
-                        if (!await CheckAuth(context)) return;
-
-                        CacheKeyJson? body = context.Request.HasJsonContentType() ? await context.Request.ReadFromJsonAsync<CacheKeyJson>() : null;
-
-                        if (body is null)
-                        {
-                            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                            await context.Response.WriteAsJsonAsync(new { code = 400, message = "Invalid request body" });
-                            return;
-                        }
-
-                        string? key = body.key;
-
-                        if (key is null)
-                        {
-                            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                            await context.Response.WriteAsJsonAsync(new { code = 400, message = "Invalid key" });
-                            return;
-                        }
-
-                        context.Response.StatusCode = StatusCodes.Status200OK;
-                        await context.Response.WriteAsJsonAsync(new { encryptedKey = Encryption.EncryptApiKey(key) });
-                        return;
-                    }
-                    }
-                }
             }
         };
-    }
-
-    public class CacheKeyJson
-    {
-        public string? key;
     }
 }

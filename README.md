@@ -19,20 +19,20 @@ You can learn more about their API in their [docs](https://apidocs.policerolepla
 
 ### Environment Variables
 
-| Varible Name        | Required |  Default   | Use                                                                                   |
-| ------------------- | :------: | :--------: | ------------------------------------------------------------------------------------- |
-| PRC_GLOBAL_KEY      |    ❌    |            | Your global API key from PRC, not required but may be needed for bigger applications. |
-| AUTHORIZATION_KEY   |    ❌    |            | Required if `USE_AUTHORIZATION` is TRUE.                                              |
-| USE_AUTHORIZATION   |    ❌    | Key Exists | Whether the `Authorization` header is required for PRC endpoints only.                |
-| ENCRYPTION_KEY      |    ✅    |            | The encryption key to use for API key encryption. Should be 32 characters long.       |
-| REDIS_HOST          |    ❌    |            | The host for your redis instance.                                                     |
-| REDIS_PASSWORD      |    ❌    |            | The password for your redis instance.                                                 |
-| REDIS_PORT          |    ❌    |            | The port for your redis instance.                                                     |
-| DISCORD_WEBHOOK_URL |    ❌    |            | The webhook to send error alerts to.                                                  |
+| Varible Name          | Required |  Default   | Use                                                                                   |
+| --------------------- | :------: | :--------: | ------------------------------------------------------------------------------------- |
+| PRC_GLOBAL_KEY        |    ❌    |            | Your global API key from PRC, not required but may be needed for bigger applications. |
+| AUTHORIZATION_KEY     |    ❌    |            | Required if `USE_AUTHORIZATION` is TRUE.                                              |
+| USE_AUTHORIZATION     |    ❌    | Key Exists | Whether the `Authorization` header is required for PRC endpoints only.                |
+| REDIS_HOST            |    ❌    |            | The host for your redis instance.                                                     |
+| REDIS_PASSWORD        |    ❌    |            | The password for your redis instance.                                                 |
+| REDIS_PORT            |    ❌    |            | The port for your redis instance.														|
+| REDIS_PUBLISH_RESULTS |    ❌    |   FALSE    | Whether to publish results to redis channels for other services to consume.           |
+| DISCORD_WEBHOOK_URL   |    ❌    |            | The webhook to send error alerts to.                                                  |
 
 If you are using multiple replicas (to spread load), you should add a redis instance so that the replicas can work in sync, otherwise you will be recieving a ton of ratelimit errors.
 
-Using the railway templates above, the `AUTHORIZATION_KEY` and `ENCRYPTION_KEY` environment variables will be automatically generated upon the first deployment and the Redis based variables will be auto filled in the template that uses Redis, otherwise, you will be prompted to fill out those fields (optional) upon deploying the template without Redis.
+Using the railway templates above, the `AUTHORIZATION_KEY` environment variable will be automatically generated upon the first deployment and the Redis based variables will be auto filled in the template that uses Redis, otherwise, you will be prompted to fill out those fields (optional) upon deploying the template without Redis.
 
 ⚠ Authentication and redis caching is disabled when in debug mode. ⚠
 
@@ -41,42 +41,20 @@ Using the railway templates above, the `AUTHORIZATION_KEY` and `ENCRYPTION_KEY` 
 | Header Name    |     Type      | Default | Use                                                                          |
 | -------------- | :-----------: | :-----: | ---------------------------------------------------------------------------- |
 | Authorization  |    String     |         | The authorization key matching the `AUTHORIZATION_KEY` environment variable. |
-| Server-Key     |    String     |         | The encrypted server key, used for all server related endpoints.             |
+| Server-Key     |    String     |         | The plain text server API key for server related endpoints.                  |
 | Use-Cache      |     Bool      |  TRUE   | Whether this request should use the cache.                                   |
 | Cache-Duration | Int (Seconds) |   60    | How long the cache should last.                                              |
 | Run-At         |   Timestamp   |  now()  | When this request should run.                                                |
 
-Unsure how to encrypt your server key? We use AES encryption with the `ENCRYPTION_KEY` environment variable being the encryption key. Unsure how to implement this into your application?:
+**Security Note:** API keys are automatically hashed (SHA256) for caching, service communication and logging operations to prevent exposure.
 
-- We have code which you can use in /src/Encryption.cs if your application uses C#
+Remember, while this service handles API key security internally, you should still protect your API keys in transit and storage within your own application.
 
-```cs
-public string EncryptApiKey(string apiKey)
-{
-    using var aes = Aes.Create();
-    aes.Key = Encoding.UTF8.GetBytes(EncryptionKey);
-    aes.GenerateIV();
-    var iv = aes.IV;
+### Publishing Results to Redis
+If you have `REDIS_PUBLISH_RESULTS` enabled, unhashed API keys will be sent over the redis channels to other services to consume, so make sure that your redis instance is secure.
 
-    using var encryptor = aes.CreateEncryptor(aes.Key, iv);
-    using var ms = new MemoryStream();
-    ms.Write(iv, 0, iv.Length);
-    using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
-    using (var sw = new StreamWriter(cs))
-    {
-        sw.Write(apiKey);
-    }
-    return Convert.ToBase64String(ms.ToArray());
-}
-```
-
-- You can use the POST /encrypt-key endpoint with a body formatted as:
-
-```json
-{ "key": "SERVER_KEY_HERE" }
-```
-
-Remember, never store API keys in plain text.
+On a successful request, data will be sent to the `prcapiworker:update` channel in the following format: `{APIKEY}:{ENDPOINT}:{DATA}`, where the endpoint is a string representation of the `Endpoint` enum and the data is the raw JSON response from PRC.
+On a failed request, error information will be sent to the `prcapiworker:failure` channel in the following format: `{APIKEY}:{ENDPOINT}:{ERRORCODE}:{ERRORMESSAGE}`, where the endpoint is a string represenation of the `Endpoint` enum.
 
 ## Support
 
