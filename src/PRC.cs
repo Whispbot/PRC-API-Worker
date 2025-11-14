@@ -14,7 +14,7 @@ namespace PRC_API_Worker
     {
         private static readonly HttpClient _client = new();
         private static readonly Random _random = new();
-        private static readonly ISubscriber? _subscriber = Redis.GetSubscriber();
+        private static readonly ISubscriber? _subscriber = Caching.usingRedis ? Redis.GetSubscriber() : null;
 
         public static readonly string baseUrl = "https://api.policeroleplay.community";
         public static readonly string? globalApiKey = Environment.GetEnvironmentVariable("PRC_GLOBAL_KEY");
