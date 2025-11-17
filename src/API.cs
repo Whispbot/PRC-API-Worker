@@ -129,7 +129,7 @@ namespace PRC_API_Worker
 
                     // Check cache for pre-existing data
                     string? useCacheHeader = context.Request.Headers["Use-Cache"].FirstOrDefault();
-                    bool useCache = useCacheHeader is null || bool.Parse(useCacheHeader);
+                    bool useCache = endpointData.Item2 != Post && (useCacheHeader is null || bool.Parse(useCacheHeader));
 
                     string? cacheDurationHeader = context.Request.Headers["Cache-Duration"].FirstOrDefault();
                     TimeSpan cacheDuration = cacheDurationHeader is not null ? TimeSpan.FromSeconds(int.Parse(cacheDurationHeader)) : TimeSpan.FromMinutes(1);

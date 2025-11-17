@@ -121,9 +121,15 @@ namespace PRC_API_Worker
 
                                     if (item.serverKey is not null) request.Headers.Add("Server-Key", item.serverKey);
 
-                                    if (item.body is not null) request.Content = new StringContent(item.body, Encoding.UTF8, new MediaTypeHeaderValue("application/json"));
+                                    if (item.body is not null)
+                                    {
+                                        request.Content = new StringContent(item.body, Encoding.UTF8, new MediaTypeHeaderValue("application/json"));
+                                        request.Headers.TryAddWithoutValidation("content-type", "application/json");
+                                    }
 
                                     HttpResponseMessage result = await _client.SendAsync(request);
+
+                                    
 
                                     var headers = result.Headers;
                                     if (headers.Contains("X-RateLimit-Bucket"))
@@ -165,7 +171,7 @@ namespace PRC_API_Worker
 
                                         if (Environment.GetEnvironmentVariable("REDIS_PUBLISH_RESULTS")?.ToLower() == "true")
                                         {
-                                            _subscriber?.Publish("prcapiworker:update", $"{item.serverKey}:{item.endpoint}:{body}");
+                                            _subscriber?.PublishAsync("prcapiworker:update", $"{item.serverKey}:{item.endpoint}:{body}");
                                         }
                                     }
                                     else
@@ -196,7 +202,7 @@ namespace PRC_API_Worker
 
                                             if (Environment.GetEnvironmentVariable("REDIS_PUBLISH_RESULTS")?.ToLower() == "true")
                                             {
-                                                _subscriber?.Publish("prcapiworker:failure", $"{item.serverKey}:{item.endpoint}:{code}:{error?.message ?? "unknown error"}");
+                                                _subscriber?.PublishAsync("prcapiworker:failure", $"{item.serverKey}:{item.endpoint}:{code}:{error?.message ?? "unknown error"}");
                                             }
                                         }
                                     }
