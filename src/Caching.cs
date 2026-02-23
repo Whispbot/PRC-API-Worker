@@ -65,9 +65,9 @@ namespace PRC_API_Worker
         {
             if (usingRedis)
             {
-                if (redis is null) return default;
+                if (redis is null) return null;
                 var value = redis.StringGet(key);
-                return value.ToString();
+                return value.IsNull ? null : value.ToString();
             }
             else
             {
