@@ -157,7 +157,7 @@ namespace PRC_API_Worker
                             context.Response.StatusCode = StatusCodes.Status200OK;
                             string? cachedAt = Caching.GetCache($"{cacheKey}:timestamp");
                             long? cachedAtMs = cachedAt is not null ? long.Parse(cachedAt) : null;
-                            await context.Response.WriteAsJsonAsync(new { code = 304, message = "Item Cached", data = JsonConvert.DeserializeObject<PRC_ServerInfo>(cachedResponse), cachedAt = cachedAtMs });
+                            await context.Response.WriteAsJsonAsync(new { code = 304, message = "Item Cached", data = JsonConvert.DeserializeObject(cachedResponse), cachedAt = cachedAtMs });
                             return;
                         }
                     }
@@ -197,7 +197,7 @@ namespace PRC_API_Worker
                             }
 
                             context.Response.StatusCode = StatusCodes.Status200OK;
-                            await context.Response.WriteAsJsonAsync(new { code = 200, data = item.result is not null ? JsonConvert.DeserializeObject<PRC_ServerInfo>(item.result) : null });
+                            await context.Response.WriteAsJsonAsync(new { code = 200, data = item.result is not null ? JsonConvert.DeserializeObject(item.result) : null });
                         }
                         else // Request failed for whatever reason
                         {
@@ -205,7 +205,7 @@ namespace PRC_API_Worker
                             string? cachedAt = expiredCache is not null ? Caching.GetCache($"{cacheKey}:timestamp") : null;
                             long? cachedAtMs = cachedAt is not null ? long.Parse(cachedAt) : null;
                             context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                            await context.Response.WriteAsJsonAsync(new { code = item.failureCode, message = item.failureReason, data = expiredCache is not null ? JsonConvert.DeserializeObject<PRC_ServerInfo>(expiredCache) : null, cachedAt = cachedAtMs });
+                            await context.Response.WriteAsJsonAsync(new { code = item.failureCode, message = item.failureReason, data = expiredCache is not null ? JsonConvert.DeserializeObject(expiredCache) : null, cachedAt = cachedAtMs });
                         }
                     }
                     else // Request never completed within expected duration
@@ -214,7 +214,7 @@ namespace PRC_API_Worker
                         string? cachedAt = expiredCache is not null ? Caching.GetCache($"{cacheKey}:timestamp") : null;
                         long? cachedAtMs = cachedAt is not null ? long.Parse(cachedAt) : null;
                         context.Response.StatusCode = StatusCodes.Status408RequestTimeout;
-                        await context.Response.WriteAsJsonAsync(new { code = 408, message = "Request Timeout", data = expiredCache is not null ? JsonConvert.DeserializeObject<PRC_ServerInfo>(expiredCache) : null, cachedAt = cachedAtMs });
+                        await context.Response.WriteAsJsonAsync(new { code = 408, message = "Request Timeout", data = expiredCache is not null ? JsonConvert.DeserializeObject(expiredCache) : null, cachedAt = cachedAtMs });
                     }
                 } 
                 catch (Exception ex)
