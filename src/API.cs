@@ -150,14 +150,14 @@ namespace PRC_API_Worker
                     {
                         // Only need to cache get requests
 
-                        object? cachedResponse = Caching.GetCache(cacheKey);
+                        string? cachedResponse = Caching.GetCache(cacheKey);
 
                         if (cachedResponse is not null)
                         {
                             context.Response.StatusCode = StatusCodes.Status200OK;
-                            object? cachedAt = Caching.GetCache($"{cacheKey}:timestamp");
-                            long? cachedAtMs = cachedAt is not null ? (long)cachedAt : null;
-                            await context.Response.WriteAsJsonAsync(new { code = 304, message = "Item Cached", data = cachedResponse, cachedAt = cachedAtMs });
+                            string? cachedAt = Caching.GetCache($"{cacheKey}:timestamp");
+                            long? cachedAtMs = cachedAt is not null ? long.Parse(cachedAt) : null;
+                            await context.Response.WriteAsJsonAsync(new { code = 304, message = "Item Cached", data = JsonConvert.DeserializeObject(cachedResponse), cachedAt = cachedAtMs });
                             return;
                         }
                     }
