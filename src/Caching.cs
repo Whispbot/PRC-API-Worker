@@ -13,7 +13,7 @@ namespace PRC_API_Worker
     {
         public static bool usingRedis = !Config.isDev && (Environment.GetEnvironmentVariable("REDIS_HOST") is not null);
 
-        public static readonly Dictionary<string, (object, double)> inMemory = [];
+        public static readonly Dictionary<string, (string, double)> inMemory = [];
         public static IDatabase? redis = null;
 
         public static void Init()
@@ -48,12 +48,12 @@ namespace PRC_API_Worker
             }
         }
 
-        public static void SetCache(string key, object item, double ttlMs = 60000)
+        public static void SetCache(string key, string item, double ttlMs = 60000)
         {
             if (usingRedis)
             {
                 if (redis is null) return;
-                redis.StringSet(key, JsonConvert.SerializeObject(item), TimeSpan.FromMilliseconds(ttlMs));
+                redis.StringSet(key, item, TimeSpan.FromMilliseconds(ttlMs));
             }
             else
             {
@@ -61,17 +61,17 @@ namespace PRC_API_Worker
             }
         }
 
-        public static object? GetCache(string key)
+        public static string? GetCache(string key)
         {
             if (usingRedis)
             {
                 if (redis is null) return default;
                 var value = redis.StringGet(key);
-                return value.HasValue ? JsonConvert.DeserializeObject(value.ToString()) : default;
+                return value.ToString();
             }
             else
             {
-                (object, double) value = inMemory.GetValueOrDefault(key, (new { },-1));
+                (string, double) value = inMemory.GetValueOrDefault(key);
                 if (value.Item2 > DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                 {
                     return value.Item1;

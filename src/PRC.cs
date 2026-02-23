@@ -163,7 +163,7 @@ namespace PRC_API_Worker
                                         Breaker.RecordRequest(false); // Successful request
 
                                         string body = await result.Content.ReadAsStringAsync();
-                                        item.result = JsonConvert.DeserializeObject(body, endpoint.Item3 ?? typeof(PRC_Message), new JsonSerializerSettings() { Error = (o, e) => { e.ErrorContext.Handled = true; } });
+                                        item.result = body;
                                         item.complete = true;
                                         item.success = true;
 
@@ -332,7 +332,7 @@ namespace PRC_API_Worker
             public ErrorCode? failureCode = null;
             public string? failureReason = null;
 
-            public object? result = null;
+            public string? result = null;
         }
 
         //    Endpoint                     Path                      Method          Return Type                         Requires Server Key

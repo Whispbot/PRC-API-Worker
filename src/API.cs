@@ -15,6 +15,7 @@ using static System.Net.Http.HttpMethod;
 using Microsoft.AspNetCore.DataProtection.KeyManagement.Internal;
 using System.ComponentModel.Design.Serialization;
 using System.Diagnostics;
+using Newtonsoft.Json;
 
 namespace PRC_API_Worker
 {
@@ -191,29 +192,29 @@ namespace PRC_API_Worker
                                 _ = Task.Run(() => {
                                     Caching.SetCache(cacheKey, item.result, cacheDuration.TotalMilliseconds);
                                     Caching.SetCache($"{cacheKey}:expired", item.result, 1000 * 60 * 60);
-                                    Caching.SetCache($"{cacheKey}:timestamp", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 1000 * 60 * 60);
+                                    Caching.SetCache($"{cacheKey}:timestamp", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(), 1000 * 60 * 60);
                                 });
                             }
 
                             context.Response.StatusCode = StatusCodes.Status200OK;
-                            await context.Response.WriteAsJsonAsync(new { code = 200, data = item.result });
+                            await context.Response.WriteAsJsonAsync(new { code = 200, data = item.result is not null ? JsonConvert.DeserializeObject(item.result) : null });
                         }
                         else // Request failed for whatever reason
                         {
-                            object? expiredCache = Caching.GetCache($"{cacheKey}:expired");
-                            object? cachedAt = expiredCache is not null ? Caching.GetCache($"{cacheKey}:timestamp") : null;
-                            long? cachedAtMs = cachedAt is not null ? (long)cachedAt : null;
+                            string? expiredCache = Caching.GetCache($"{cacheKey}:expired");
+                            string? cachedAt = expiredCache is not null ? Caching.GetCache($"{cacheKey}:timestamp") : null;
+                            long? cachedAtMs = cachedAt is not null ? long.Parse(cachedAt) : null;
                             context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                            await context.Response.WriteAsJsonAsync(new { code = item.failureCode, message = item.failureReason, data = expiredCache, cachedAt = cachedAtMs });
+                            await context.Response.WriteAsJsonAsync(new { code = item.failureCode, message = item.failureReason, data = expiredCache is not null ? JsonConvert.DeserializeObject(expiredCache) : null, cachedAt = cachedAtMs });
                         }
                     }
                     else // Request never completed within expected duration
                     {
-                        object? expiredCache = Caching.GetCache($"{cacheKey}:expired");
-                        object? cachedAt = expiredCache is not null ? Caching.GetCache($"{cacheKey}:timestamp") : null;
-                        long? cachedAtMs = cachedAt is not null ? (long)cachedAt : null;
+                        string? expiredCache = Caching.GetCache($"{cacheKey}:expired");
+                        string? cachedAt = expiredCache is not null ? Caching.GetCache($"{cacheKey}:timestamp") : null;
+                        long? cachedAtMs = cachedAt is not null ? long.Parse(cachedAt) : null;
                         context.Response.StatusCode = StatusCodes.Status408RequestTimeout;
-                        await context.Response.WriteAsJsonAsync(new { code = 408, message = "Request Timeout", data = expiredCache, cachedAt = cachedAtMs });
+                        await context.Response.WriteAsJsonAsync(new { code = 408, message = "Request Timeout", data = expiredCache is not null ? JsonConvert.DeserializeObject(expiredCache) : null, cachedAt = cachedAtMs });
                     }
                 } 
                 catch (Exception ex)

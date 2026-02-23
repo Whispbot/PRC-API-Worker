@@ -195,7 +195,11 @@ namespace PRC_API_Worker
         public PRC_StaffInfo? Staff { get; init; }
         public List<PRC_JoinLogInfo>? JoinLogs { get; init; }
         public List<long>? Queue { get; init; }
-}
+        public List<PRC_KillLogInfo>? KillLogs { get; init; }
+        public List<PRC_CommandLogInfo>? CommandLogs { get; init; }
+        public List<PRC_ModCallInfo>? ModCalls { get; init; }
+        public List<PRC_VehicleInfo>? Vehicles { get; init; }
+    }
 
     public class PRC_PlayerInfo
     {
