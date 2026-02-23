@@ -45,7 +45,7 @@ namespace PRC_API_Worker
             {
                 if (requestQueue.Count == 0) // No need to waste resources if there is nothing to do
                 {
-                    Thread.Sleep(50);
+                    Thread.Sleep(10);
                     continue;
                 }
 
@@ -58,6 +58,10 @@ namespace PRC_API_Worker
                         {
                             // Request has timed out, drop it to avoid backlog
                             theChosenOne = item;
+                            item.complete = true;
+                            item.success = false;
+                            item.failureReason = "Request timed out in queue";
+                            Log.Verbose($"[{item.id}] Timed out");
                             break;
                         }
 
@@ -78,6 +82,7 @@ namespace PRC_API_Worker
                                 }
                                 else // Schedule to run when the bucket resets
                                 {
+                                    Log.Verbose($"[{item.id}] Bucket {bucket.key.Replace(item.serverKey ?? " ", "#########")} has no remaining requests");
                                     item.runAt = bucket.reset.AddSeconds(1);
                                     continue;
                                 }
@@ -88,6 +93,8 @@ namespace PRC_API_Worker
 
                             if (!Breaker.AllowRequest) // Circuit breaker is open, requeue the request
                             {
+                                Log.Verbose($"[{item.id}] Request denied by circuit breaker");
+
                                 if (item.attempts < maxRetries)
                                 {
                                     item.runAt = DateTimeOffset.UtcNow + GetRetryDelay(item.attempts);
@@ -117,7 +124,10 @@ namespace PRC_API_Worker
                             {
                                 try
                                 {
-                                    HttpRequestMessage request = new(endpoint.Item2, endpoint.Item1);
+                                    Log.Verbose($"[{item.id}] Running");
+
+                                    string url = endpoint.Item1 + item.SearchParamsString;
+                                    HttpRequestMessage request = new(endpoint.Item2, url);
 
                                     if (item.serverKey is not null) request.Headers.Add("Server-Key", item.serverKey);
 
@@ -128,8 +138,6 @@ namespace PRC_API_Worker
                                     }
 
                                     HttpResponseMessage result = await _client.SendAsync(request);
-
-                                    
 
                                     var headers = result.Headers;
                                     if (headers.Contains("X-RateLimit-Bucket"))
@@ -142,9 +150,13 @@ namespace PRC_API_Worker
                                             bucket.remaining = int.Parse(headers.GetValues("X-RateLimit-Remaining").FirstOrDefault() ?? "-1");
                                         }
 
+                                        Log.Verbose($"[{item.id}] Bucket {bucket.key.Replace(item.serverKey ?? " ", "#######")}: {bucket.remaining}/{bucket.limit} remaining, reset: {bucket.reset}");
+
                                         _ = Task.Run(() => Sync.SyncBucket(bucket));
                                     }
                                     bucket.inUse = false;
+
+                                    Log.Verbose($"[{item.id}] Status: {(int)result.StatusCode} {result.StatusCode}");
 
                                     if (result.IsSuccessStatusCode)
                                     {
@@ -181,6 +193,8 @@ namespace PRC_API_Worker
                                         bool retry = retryCodes.Contains(code);
                                         Breaker.RecordRequest(retry);
 
+                                        Log.Verbose($"[{item.id}] Error: [{code}] {error?.message ?? "n/a"}");
+
                                         if (retry)
                                         {
                                             if (item.attempts < maxRetries)
@@ -189,6 +203,8 @@ namespace PRC_API_Worker
                                                 item.runAt = DateTimeOffset.UtcNow + GetRetryDelay(item.attempts);
                                                 item.queuedAt = DateTimeOffset.UtcNow;
                                                 lock (requestQueue) requestQueue.Add(item);
+
+                                                Log.Verbose($"[{item.id}] Retrying in {item.runAt.ToUnixTimeSeconds() - DateTimeOffset.UtcNow.ToUnixTimeSeconds()} seconds");
 
                                                 return;
                                             }
@@ -220,8 +236,10 @@ namespace PRC_API_Worker
                     if (theChosenOne is not null)
                     {
                         requestQueue.Remove(theChosenOne);
+                        Log.Verbose($"[{theChosenOne.id}] Removed");
                     }
                 }
+                Thread.Sleep(10);
             }
             while (!stopping);
 
@@ -235,7 +253,7 @@ namespace PRC_API_Worker
             return item;
         }
 
-        public static QueueItem Enqueue(Endpoint endpoint, string? serverKey, string? body = null, DateTimeOffset? runAt = null)
+        public static QueueItem Enqueue(Endpoint endpoint, string? serverKey, string? body = null, Dictionary<string, string>? searchParams = null, DateTimeOffset? runAt = null)
         {
             runAt ??= DateTimeOffset.UtcNow;
             QueueItem item = new()
@@ -243,19 +261,20 @@ namespace PRC_API_Worker
                 endpoint = endpoint,
                 serverKey = serverKey,
                 runAt = runAt.Value,
-                body = body
+                body = body,
+                searchParams = searchParams ?? []
             };
             return Enqueue(item);
         }
 
-        public static QueueItem? WaitForCompletion(QueueItem item, TimeSpan? timeout = null, TimeSpan? interval = null)
+        public static QueueItem WaitForCompletion(QueueItem item, TimeSpan? timeout = null, TimeSpan? interval = null)
         {
             timeout ??= TimeSpan.FromSeconds(10);
             interval ??= TimeSpan.FromMilliseconds(50);
 
             while (!item.complete && item.ExpiresAt > DateTimeOffset.UtcNow + timeout) Thread.Sleep(interval.Value);
 
-            return item.complete ? item : null;
+            return item;
         }
 
         public class Bucket
@@ -269,8 +288,11 @@ namespace PRC_API_Worker
 
         public class QueueItem
         {
+            public Guid id = Guid.NewGuid();
             public Endpoint endpoint;
             public (string, HttpMethod, Type?, bool) EndpointData => endpoints[endpoint];
+            public Dictionary<string, string> searchParams = [];
+            public string SearchParamsString => API.ConvertSearchParamsToString(searchParams);
             /// <summary>
             /// Plain text API key for sending to PRC API and bucket identification
             /// </summary>
@@ -317,6 +339,7 @@ namespace PRC_API_Worker
         public static readonly Dictionary<Endpoint, (string, HttpMethod, Type?, bool)> endpoints = new() {
             { Endpoint.ServerCommand,     ("/v1/server/command",     HttpMethod.Post, null,                               true ) },
             { Endpoint.ServerInfo,        ("/v1/server",             HttpMethod.Get,  typeof(PRC_Server),                 true ) },
+            { Endpoint.ServerInfoV2,      ("/v2/server",             HttpMethod.Get,  typeof(PRC_ServerInfo),             true ) },
             { Endpoint.ServerPlayers,     ("/v1/server/players",     HttpMethod.Get,  typeof(List<PRC_Player>),           true ) },
             { Endpoint.ServerJoinlogs,    ("/v1/server/joinlogs",    HttpMethod.Get,  typeof(List<PRC_JoinLog>),          true ) },
             { Endpoint.ServerQueue,       ("/v1/server/queue",       HttpMethod.Get,  typeof(List<double>),               true ) },
@@ -331,18 +354,19 @@ namespace PRC_API_Worker
 
         public enum Endpoint
         {
-            ServerCommand,
-            ServerInfo,
-            ServerPlayers,
-            ServerJoinlogs,
-            ServerQueue,
-            ServerKilllogs,
-            ServerCommandlogs,
-            ServerModcalls,
-            ServerBans,
-            ServerVehicles,
-            ServerStaff,
-            ResetAPIKey
+            ServerCommand = 0,
+            ServerInfo = 1,
+            ServerInfoV2 = 12,
+            ServerPlayers = 2,
+            ServerJoinlogs = 3,
+            ServerQueue = 4,
+            ServerKilllogs = 5,
+            ServerCommandlogs = 6,
+            ServerModcalls = 7,
+            ServerBans = 8,
+            ServerVehicles = 9,
+            ServerStaff = 10,
+            ResetAPIKey = 11
         }
 
         public enum ErrorCode

@@ -109,6 +109,11 @@ namespace PRC_API_Worker
             return true;
         }
 
+        public static string ConvertSearchParamsToString(Dictionary<string, string> searchParams)
+        {
+            return (searchParams.Count > 0 ? "?" : "") + string.Join("&", searchParams.OrderBy(kvp => kvp.Key).Select(kvp => $"{kvp.Key}={kvp.Value}"));
+        }
+
         public static RequestDelegate GetDelegate(PRC.Endpoint endpoint)
         {
             return async context =>
@@ -134,9 +139,12 @@ namespace PRC_API_Worker
                     string? cacheDurationHeader = context.Request.Headers["Cache-Duration"].FirstOrDefault();
                     TimeSpan cacheDuration = cacheDurationHeader is not null ? TimeSpan.FromSeconds(int.Parse(cacheDurationHeader)) : TimeSpan.FromMinutes(1);
 
+                    Dictionary<string, string> searchParams = context.Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString());
+                    string searchParamsString = ConvertSearchParamsToString(searchParams);
+
                     // Hash the server key for caching purposes (security)
                     string hashedServerKey = serverKey is not null ? Encryption.HashString(serverKey) : "unauthenticated";
-                    string cacheKey = $"prcapiworker:{endpoint}:{hashedServerKey}";
+                    string cacheKey = $"prcapiworker:{endpoint}{searchParamsString}:{hashedServerKey}";
                     if (context.Request.Method == Get.ToString() && useCache)
                     {
                         // Only need to cache get requests
@@ -166,8 +174,12 @@ namespace PRC_API_Worker
                     DateTimeOffset? runAtDTO = runAt is not null ? DateTimeOffset.Parse(runAt) : null;
 
                     // Enqueue the item and wait for completion
-                    PRC.QueueItem item = (context.Request.Method == Get.ToString() ? PRC.requestQueue.Find(q => !q.complete && q.endpoint == endpoint && q.serverKey == serverKey) : null) ?? PRC.Enqueue(endpoint, serverKey, requestBody, runAtDTO);
+                    PRC.QueueItem item = (context.Request.Method == Get.ToString() ? PRC.requestQueue.Find(q => !q.complete && q.endpoint == endpoint && q.serverKey == serverKey && q.SearchParamsString == searchParamsString) : null) ?? PRC.Enqueue(endpoint, serverKey, requestBody, searchParams, runAtDTO);
                     PRC.WaitForCompletion(item);
+
+                    Log.Verbose("~~~~~~~~~~~~~~~~~~~~~~~~~");
+                    Log.Verbose($"[{item.id}] Created & queued");
+                    Log.Verbose($"[{item.id}] {endpoint}");
 
                     if (item.complete)
                     {

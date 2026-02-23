@@ -180,4 +180,83 @@ namespace PRC_API_Worker
         /// </summary>
         public Dictionary<string, string> Mods = [];
     }
+
+    public class PRC_ServerInfo
+    {
+        public string Name { get; init; } = default!;
+        public long OwnerId { get; init; } = default!;
+        public List<long> CoOwnerIds { get; init; } = [];
+        public byte CurrentPlayers { get; init; } = default!;
+        public byte MaxPlayers { get; init; } = default!;
+        public string JoinKey { get; init; } = default!;
+        public string AccVerifiedReq { get; init; } = default!;
+        public bool TeamBalance { get; init; } = default!;
+        public List<PRC_PlayerInfo>? Players { get; init; }
+        public PRC_StaffInfo? Staff { get; init; }
+        public List<PRC_JoinLogInfo>? JoinLogs { get; init; }
+        public List<long>? Queue { get; init; }
+}
+
+    public class PRC_PlayerInfo
+    {
+        public string Team { get; init; } = default!;
+        public string Player { get; init; } = default!;
+        public string? Callsign { get; init; }
+        public string Permission { get; init; } = default!;
+        public float WantedStars { get; init; } = default!;
+        public PRC_PlayerLocation Location { get; init; } = default!;
+    }
+
+    public class PRC_PlayerLocation
+    {
+        public float LocationX { get; init; } = -1;
+        public float LocationZ { get; init; } = -1;
+        public string PostalCode { get; init; } = default!;
+        public string StreetName { get; init; } = default!;
+        public string BuildingNumber { get; init; } = default!;
+    }
+    
+    public class PRC_StaffInfo
+    {
+        public Dictionary<string, string> Admins { get; init; } = [];
+        public Dictionary<string, string> Mods { get; init; } = [];
+        public Dictionary<string, string> Helpers { get; init; } = [];
+    }
+
+    public class PRC_JoinLogInfo
+    {
+        public bool Join { get; init; } = default!;
+        public long Timestamp { get; init; } = default!;
+        public string Player { get; init; } = default!;
+    }
+
+    public class PRC_KillLogInfo
+    {
+        public string Killer { get; init; } = default!;
+        public string Killed { get; init; } = default!;
+        public long Timestamp { get; init; } = default!;
+    }
+
+    public class PRC_CommandLogInfo
+    {
+        public string Player { get; init; } = default!;
+        public string Command { get; init; } = default!;
+        public long Timestamp { get; init; } = default!;
+    }
+
+    public class PRC_ModCallInfo
+    {
+        public string Caller { get; init; } = default!;
+        public string? Moderator { get; init; }
+        public long Timestamp { get; init; } = default!;
+    }
+
+    public class PRC_VehicleInfo
+    {
+        public string Name { get; init; } = default!;
+        public string Owner { get; init; } = default!;
+        public string? Texture { get; init; }
+        public string ColorHex { get; init; } = default!;
+        public string ColorName { get; init; } = default!;
+    }
 }
