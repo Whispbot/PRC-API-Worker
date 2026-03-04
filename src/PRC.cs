@@ -61,6 +61,7 @@ namespace PRC_API_Worker
                             item.complete = true;
                             item.success = false;
                             item.failureReason = "Request timed out in queue";
+                            Analytics.AddRequest(requestTimeout.TotalMilliseconds, false);
                             Log.Verbose($"[{item.id}] Timed out");
                             break;
                         }
@@ -82,12 +83,15 @@ namespace PRC_API_Worker
                                 }
                                 else // Schedule to run when the bucket resets
                                 {
-                                    Log.Verbose($"[{item.id}] Bucket {bucket.key.Replace(item.serverKey ?? " ", "#########")} has no remaining requests");
+                                    Log.Verbose($"[{item.id}] Bucket {bucket.key.Replace(item.serverKey ?? " ", item.HashedServerKey)} has no remaining requests");
                                     item.runAt = bucket.reset.AddSeconds(1);
                                     continue;
                                 }
                             }
-                            else if (bucket.remaining <= -1 && bucket.inUse) continue; // Unknown limit, but already in use, so wait until limit is known
+                            else if (bucket.remaining <= -1 && bucket.inUse)
+                            {
+                                continue; // Unknown limit, but already in use, so wait until limit is known
+                            }
 
 
 
@@ -105,6 +109,7 @@ namespace PRC_API_Worker
                                     item.complete = true;
                                     item.success = false;
                                     item.failureReason = "Max retries reached (circuit breaker)";
+                                    Analytics.AddRequest(requestTimeout.TotalMilliseconds, false);
                                     theChosenOne = item; // Drop the request
                                 }
                                 break;
@@ -137,7 +142,12 @@ namespace PRC_API_Worker
                                         request.Headers.TryAddWithoutValidation("content-type", "application/json");
                                     }
 
+                                    DateTimeOffset start = DateTimeOffset.UtcNow;
+
                                     HttpResponseMessage result = await _client.SendAsync(request);
+
+                                    double duration = (DateTimeOffset.UtcNow - start).TotalMilliseconds;
+                                    Analytics.AddRequest(duration, (int)result.StatusCode >= 500);
 
                                     var headers = result.Headers;
                                     if (headers.Contains("X-RateLimit-Bucket"))
@@ -150,13 +160,13 @@ namespace PRC_API_Worker
                                             bucket.remaining = int.Parse(headers.GetValues("X-RateLimit-Remaining").FirstOrDefault() ?? "-1");
                                         }
 
-                                        Log.Verbose($"[{item.id}] Bucket {bucket.key.Replace(item.serverKey ?? " ", "#######")}: {bucket.remaining}/{bucket.limit} remaining, reset: {bucket.reset}");
+                                        Log.Verbose($"[{item.id}] Bucket {bucket.key.Replace(item.serverKey ?? " ", item.HashedServerKey)}: {bucket.remaining}/{bucket.limit} remaining, reset: {bucket.reset}");
 
                                         _ = Task.Run(() => Sync.SyncBucket(bucket));
                                     }
                                     bucket.inUse = false;
 
-                                    Log.Verbose($"[{item.id}] Status: {(int)result.StatusCode} {result.StatusCode}");
+                                    Log.Verbose($"[{item.id}] Status: {(int)result.StatusCode} {result.StatusCode} in {duration}ms");
 
                                     if (result.IsSuccessStatusCode)
                                     {
@@ -228,6 +238,7 @@ namespace PRC_API_Worker
                                     item.complete = true;
                                     item.success = false;
                                     item.failureReason = $"{ex.GetType().Name}: {ex.Message}";
+                                    Analytics.AddRequest(requestTimeout.TotalMilliseconds, false);
                                 }
                             });
                         }

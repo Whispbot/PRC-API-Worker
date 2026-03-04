@@ -248,6 +248,27 @@ namespace PRC_API_Worker
                     }
                     }
                 }
+            },
+            {
+                "/analytics",
+                new()
+                {
+                    { Get, async context =>
+                    {
+                        try {
+                            if (!await CheckAuth(context)) return;
+
+                            Analytics.CheckSpan(); // Make sure to update the analytics data before returning it
+
+                            context.Response.StatusCode = StatusCodes.Status200OK;
+                            await context.Response.WriteAsJsonAsync(Analytics.requests);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error("Analytics fetch failed:", ex);
+                        }
+                    } }
+                }
             }
         };
     }
