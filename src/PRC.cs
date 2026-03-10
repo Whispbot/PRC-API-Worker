@@ -62,7 +62,7 @@ namespace PRC_API_Worker
                             item.complete = true;
                             item.success = false;
                             item.failureReason = "Request timed out in queue";
-                            Analytics.AddRequest(requestTimeout.TotalMilliseconds, false);
+                            Analytics.AddRequest(requestTimeout.TotalMilliseconds, true);
                             Log.Verbose($"[{item.id}] Timed out");
                             break;
                         }
@@ -110,7 +110,7 @@ namespace PRC_API_Worker
                                     item.complete = true;
                                     item.success = false;
                                     item.failureReason = "Max retries reached (circuit breaker)";
-                                    Analytics.AddRequest(requestTimeout.TotalMilliseconds, false);
+                                    Analytics.AddRequest(requestTimeout.TotalMilliseconds, true);
                                     theChosenOne = item; // Drop the request
                                 }
                                 break;
@@ -148,7 +148,7 @@ namespace PRC_API_Worker
                                     HttpResponseMessage result = await _client.SendAsync(request);
 
                                     double duration = (DateTimeOffset.UtcNow - start).TotalMilliseconds;
-                                    Analytics.AddRequest(duration, (int)result.StatusCode >= 500);
+                                    Analytics.AddRequest(duration, (int)result.StatusCode >= 300);
 
                                     var headers = result.Headers;
                                     if (headers.Contains("X-RateLimit-Bucket"))
@@ -243,7 +243,7 @@ namespace PRC_API_Worker
                                     item.complete = true;
                                     item.success = false;
                                     item.failureReason = $"{ex.GetType().Name}: {ex.Message}";
-                                    Analytics.AddRequest(requestTimeout.TotalMilliseconds, false);
+                                    Analytics.AddRequest(requestTimeout.TotalMilliseconds, true);
                                 }
                             });
                         }
