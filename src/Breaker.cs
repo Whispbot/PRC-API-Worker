@@ -109,12 +109,20 @@ namespace PRC_API_Worker
         public static async Task OnHighErrorRate()
         {
             Log.Warning($"High error rate! {ApproxErrorRate * 100}% of requests fail.");
+
+            var sub = Redis.GetSubscriber();
+            sub?.Publish("prcapiworker:breaker:down", $"{ApproxErrors}/{ApproxRequests}");
+
             await SendDiscordLog();
         }
 
         public static async Task OnLowErrorRate()
         {
             Log.Information($"Error rate back to normal.");
+
+            var sub = Redis.GetSubscriber();
+            sub?.Publish("prcapiworker:breaker:up", $"{ApproxErrors}/{ApproxRequests}");
+
             await SendDiscordLog();
         }
 
