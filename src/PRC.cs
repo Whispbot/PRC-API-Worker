@@ -4,6 +4,7 @@ using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
@@ -158,6 +159,10 @@ namespace PRC_API_Worker
                                         if (bucket.remaining <= 0) // Only update if remaining is unknown or could de-sync values if another request is in progress
                                         {
                                             bucket.remaining = int.Parse(headers.GetValues("X-RateLimit-Remaining").FirstOrDefault() ?? "-1");
+                                        }
+                                        else if (result.StatusCode == HttpStatusCode.TooManyRequests)
+                                        {
+                                            bucket.remaining = 0; // If we got ratelimited, we know the bucket is empty, no need to read the header
                                         }
 
                                         Log.Verbose($"[{item.id}] Bucket {bucket.key.Replace(item.serverKey ?? " ", item.HashedServerKey)}: {bucket.remaining}/{bucket.limit} remaining, reset: {bucket.reset}");
