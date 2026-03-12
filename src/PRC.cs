@@ -81,6 +81,10 @@ namespace PRC_API_Worker
                                 if (bucket.reset.ToUnixTimeSeconds() < DateTimeOffset.UtcNow.ToUnixTimeSeconds()) // Bucket has reset
                                 {
                                     bucket.remaining = bucket.limit;
+                                    // Reset time set to max until next request gets real reset time from headers to avoid multiple requests resetting the bucket at the same time
+                                    // Previously this caused issues where multiple requests would run causing them to hit the ratelimit before the bucket reset time was updated
+                                    // causing the breaker to go off and fucking up unrelated requests that happened to be in the queue at the same time
+                                    bucket.reset = DateTimeOffset.MaxValue; 
                                 }
                                 else // Schedule to run when the bucket resets
                                 {
@@ -168,6 +172,11 @@ namespace PRC_API_Worker
                                         Log.Verbose($"[{item.id}] Bucket {bucket.key.Replace(item.serverKey ?? " ", item.HashedServerKey)}: {bucket.remaining}/{bucket.limit} remaining, reset: {bucket.reset}");
 
                                         _ = Task.Run(() => Sync.SyncBucket(bucket));
+                                    }
+                                    else if (bucket.reset == DateTimeOffset.MaxValue)
+                                    {
+                                        // Something has gone horribly wrong if we end up here but just to be safe, reset the bucket in a minute to avoid being stuck forever
+                                        bucket.reset = DateTimeOffset.UtcNow.AddSeconds(60);
                                     }
                                     bucket.inUse = false;
 
