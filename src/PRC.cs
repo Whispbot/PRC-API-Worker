@@ -363,6 +363,7 @@ namespace PRC_API_Worker
         //    Endpoint                     Path                      Method          Return Type                         Requires Server Key
         public static readonly Dictionary<Endpoint, (string, HttpMethod, Type?, bool)> endpoints = new() {
             { Endpoint.ServerCommand,     ("/v1/server/command",     HttpMethod.Post, null,                               true ) },
+            { Endpoint.ServerCommandV2,   ("/v2/server/command",     HttpMethod.Post, null,                               true ) },
             { Endpoint.ServerInfo,        ("/v1/server",             HttpMethod.Get,  typeof(PRC_Server),                 true ) },
             { Endpoint.ServerInfoV2,      ("/v2/server",             HttpMethod.Get,  typeof(PRC_ServerInfo),             true ) },
             { Endpoint.ServerPlayers,     ("/v1/server/players",     HttpMethod.Get,  typeof(List<PRC_Player>),           true ) },
@@ -380,6 +381,7 @@ namespace PRC_API_Worker
         public enum Endpoint
         {
             ServerCommand = 0,
+            ServerCommandV2 = 13,
             ServerInfo = 1,
             ServerInfoV2 = 12,
             ServerPlayers = 2,
